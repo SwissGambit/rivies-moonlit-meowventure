@@ -2,6 +2,8 @@
   'use strict';
 
   const canvas = document.getElementById('gameCanvas');
+  const isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  if (isTouchDevice && window.innerWidth < window.innerHeight) canvas.width = 720;
   const ctx = canvas.getContext('2d');
   const scoreEl = document.getElementById('score');
   const livesEl = document.getElementById('lives');
@@ -22,7 +24,7 @@
   const WORLD_W = 3250;
   const GRAVITY = 1850;
   const MOVE_SPEED = 285;
-  const JUMP_SPEED = 680;
+  const JUMP_SPEED = isTouchDevice ? 715 : 680;
   const MAX_LEVEL = 10;
   const levelNames = [
     'Riviewood', "Grayson's Cat Town", 'Parker Penguin Flap', 'Whiskerwick Harbor',
@@ -39,6 +41,10 @@
   let lastTime = performance.now();
   let muted = false;
   let audioContext = null;
+  let musicTimer = null;
+  let musicStep = 0;
+  const themeAudio = window.RIVIE_THEME_AUDIO ? new Audio(window.RIVIE_THEME_AUDIO) : null;
+  if(themeAudio){themeAudio.loop=true;themeAudio.preload='auto';themeAudio.volume=.14;}
   let heroName = 'Rivie';
   let heroColor = '#f5a65b';
   let heroKind = 'cat';
@@ -50,7 +56,7 @@
   let boss = null;
   let powerup = null;
 
-  const player = { x: 90, y: 390, w: 48, h: 54, vx: 0, vy: 0, grounded: false, facing: 1, invincible: 0, walk: 0 };
+  const player = { x: 90, y: 390, w: 48, h: 54, vx: 0, vy: 0, grounded: false, facing: 1, invincible: 0, powered: 0, coyote: 0, jumpBuffer: 0, walk: 0 };
   const particles = [];
   const clouds = Array.from({ length: 14 }, (_, i) => ({ x: i * 270 + (i % 3) * 50, y: 72 + (i % 4) * 44, s: .65 + (i % 3) * .18 }));
 
@@ -69,20 +75,64 @@
       [0,480,760,60],[830,480,580,60],[1490,480,550,60],[2120,480,1130,60],
       [270,365,170,24],[535,285,160,24],[900,350,165,24],[1180,270,160,24],[1550,365,175,24],
       [1830,285,165,24],[2210,360,160,24],[2470,285,160,24]
+    ],
+    [
+      [0,480,520,60],[600,480,380,60],[1060,480,560,60],[1700,480,420,60],[2200,480,300,60],[2580,480,670,60],
+      [180,350,150,24],[395,275,145,24],[680,360,160,24],[1110,310,150,24],[1330,235,155,24],
+      [1740,350,160,24],[1950,270,145,24],[2240,335,145,24],[2630,285,155,24],[2890,355,170,24]
+    ],
+    [
+      [0,480,420,60],[500,480,700,60],[1290,480,300,60],[1670,480,650,60],[2400,480,350,60],[2820,480,430,60],
+      [150,370,160,24],[545,300,170,24],[810,225,145,24],[1030,345,150,24],[1330,315,170,24],
+      [1720,360,145,24],[1940,285,170,24],[2170,215,145,24],[2450,340,155,24],[2860,285,180,24]
+    ],
+    [
+      [0,480,800,60],[880,480,420,60],[1370,480,520,60],[1970,480,470,60],[2520,480,730,60],
+      [260,350,150,24],[500,265,155,24],[930,360,160,24],[1140,280,150,24],[1440,350,165,24],
+      [1690,260,150,24],[2030,345,165,24],[2270,265,145,24],[2570,350,170,24],[2820,270,160,24]
+    ],
+    [
+      [0,480,360,60],[430,480,430,60],[940,480,260,60],[1280,480,620,60],[1980,480,320,60],[2370,480,390,60],[2840,480,410,60],
+      [120,335,150,24],[475,285,145,24],[690,205,145,24],[970,355,150,24],[1320,300,170,24],
+      [1570,220,150,24],[1810,350,145,24],[2020,285,155,24],[2410,330,150,24],[2600,245,145,24],[2900,315,165,24]
+    ],
+    [
+      [0,480,600,60],[680,480,290,60],[1050,480,650,60],[1780,480,270,60],[2130,480,590,60],[2800,480,450,60],
+      [210,365,150,24],[430,285,145,24],[710,330,160,24],[1090,260,155,24],[1330,350,170,24],
+      [1580,275,145,24],[1820,350,155,24],[2170,300,155,24],[2420,220,150,24],[2630,350,145,24],[2860,275,175,24]
+    ],
+    [
+      [0,480,720,60],[800,480,500,60],[1380,480,450,60],[1910,480,520,60],[2510,480,740,60],
+      [190,350,165,24],[450,270,150,24],[850,355,150,24],[1090,270,160,24],[1420,340,150,24],
+      [1640,255,150,24],[1960,345,170,24],[2200,260,150,24],[2560,350,165,24],[2790,270,155,24]
+    ],
+    [
+      [0,480,400,60],[480,480,340,60],[900,480,430,60],[1410,480,280,60],[1770,480,510,60],[2360,480,300,60],[2740,480,510,60],
+      [120,370,145,24],[520,320,145,24],[730,240,145,24],[950,350,155,24],[1170,270,150,24],
+      [1450,340,150,24],[1810,285,165,24],[2050,205,150,24],[2400,335,150,24],[2780,300,160,24],[3020,220,145,24]
     ]
   ];
 
-  const treatSets = [
-    [[315,335],[380,335],[565,260],[625,260],[860,320],[940,320],[1145,230],[1340,420],[1440,330],[1510,330],[1690,250],[1760,250],[2050,320],[2130,320],[2305,230],[2570,420],[2650,325],[2720,325],[2890,255],[2960,255],[3090,420]],
-    [[255,310],[325,310],[665,265],[735,265],[930,340],[1265,290],[1360,290],[1695,320],[1770,320],[1935,230],[2020,230],[2375,285],[2640,210],[2705,210],[2895,310],[2980,310],[3150,420]],
-    [[315,320],[390,320],[570,240],[630,240],[945,305],[1020,305],[1215,225],[1585,320],[1670,320],[1870,240],[1940,240],[2245,315],[2520,240],[2600,240],[2760,420]]
+  const enemySets = [
+    [['cat',455,433,420,635,'patrol',58],['cat',890,318,825,990,'patrol',60],['trex',1450,425,1395,1580,'patrol',68],['cat',1725,248,1645,1800,'patrol',62],['trex',2075,425,2015,2400,'charge',70]],
+    [['trex',390,425,290,480,'charge',72],['cat',680,263,620,770,'dart',68],['trex',950,425,790,1090,'patrol',75],['cat',1290,288,1240,1405,'patrol',70],['trex',1750,425,1615,2190,'charge',76],['cat',1960,228,1905,2070,'dart',72]],
+    [['trex',590,425,460,750,'charge',78],['cat',960,303,900,1060,'dart',72],['trex',1260,425,1100,1400,'patrol',82],['cat',1620,318,1555,1710,'bob',70],['trex',1910,425,1820,2030,'charge',82],['cat',2260,313,2215,2355,'dart',74]],
+    [['cat',250,303,185,325,'dart',78],['trex',720,425,615,960,'charge',84],['cat',1180,263,1110,1245,'bob',74],['trex',1510,425,1370,1605,'patrol',88],['cat',1810,303,1740,1885,'dart',80],['trex',2310,425,2210,2490,'charge',88],['cat',2920,308,2890,3040,'bob',76]],
+    [['trex',310,425,150,410,'charge',90],['cat',610,253,550,705,'dart',82],['cat',1080,298,1030,1170,'bob',80],['trex',1430,425,1300,1580,'charge',92],['cat',1780,313,1720,1860,'dart',84],['trex',2070,425,1980,2290,'charge',94],['cat',2500,293,2450,2600,'bob',82],['trex',2940,425,2830,3240,'charge',95]],
+    [['cat',360,303,265,645,'dart',88],['trex',720,425,560,790,'charge',96],['cat',1000,313,935,1080,'bob',84],['trex',1500,425,1380,1880,'charge',98],['cat',1750,213,1690,1835,'dart',90],['trex',2140,425,1980,2430,'charge',100],['cat',2640,303,2570,2730,'bob',88]],
+    [['trex',260,425,100,350,'charge',100],['cat',535,238,480,615,'bob',88],['trex',1050,425,945,1190,'charge',102],['cat',1390,253,1320,1480,'dart',94],['trex',1660,425,1480,1890,'charge',104],['cat',2080,238,2020,2170,'bob',92],['trex',2500,425,2380,2750,'charge',106],['cat',2960,268,2900,3050,'dart',96]],
+    [['cat',280,318,215,355,'dart',96],['trex',800,425,690,960,'charge',108],['cat',1160,213,1090,1240,'bob',94],['trex',1480,425,1380,1690,'charge',110],['cat',1870,303,1820,1970,'dart',100],['trex',2280,425,2140,2710,'charge',112],['cat',2470,173,2420,2570,'bob',96],['trex',3000,425,2810,3240,'charge',114]],
+    [['trex',530,425,390,710,'charge',112],['cat',920,308,850,995,'bob',98],['trex',1160,425,1000,1290,'charge',115],['cat',1490,293,1420,1560,'dart',104],['trex',1740,425,1390,1820,'charge',118],['cat',2040,298,1960,2140,'bob',102],['trex',2270,425,1920,2420,'charge',120]],
+    [['cat',200,323,125,300,'dart',108],['trex',610,425,490,810,'charge',122],['cat',780,193,730,870,'bob',105],['trex',1120,425,910,1320,'charge',125],['cat',1510,293,1450,1600,'dart',112],['trex',1980,425,1780,2270,'charge',128],['cat',2450,288,2400,2550,'bob',108],['trex',2890,425,2750,3240,'charge',132]]
   ];
 
-  const enemySets = [
-    [['cat',455,433,420,635],['cat',890,318,825,990],['trex',1450,425,1395,1555],['cat',1725,248,1645,1800],['trex',2075,425,2015,2400],['cat',2660,323,2605,2760]],
-    [['trex',390,425,290,480],['cat',680,263,620,770],['trex',950,425,790,1090],['cat',1290,288,1240,1405],['trex',1750,425,1615,2190],['cat',1960,228,1905,2070],['trex',2420,425,2305,2710],['cat',2910,308,2860,3010]],
-    [['trex',590,425,460,750],['cat',960,303,900,1060],['trex',1260,425,1100,1400],['cat',1620,318,1555,1710],['trex',1910,425,1820,2030],['cat',2260,313,2215,2355]]
+  const allySets = [
+    [[175,'#9b8bc4'],[1120,'#f4f0e8']],[[85,'#ff78b7'],[1680,'#f5a65b']],[[180,'#f4f0e8'],[2180,'#9b8bc4']],
+    [[110,'#ff78b7'],[1810,'#f4f0e8']],[[90,'#9b8bc4'],[1760,'#ff78b7']],[[180,'#f5a65b'],[2080,'#f4f0e8']],
+    [[95,'#ff78b7'],[1430,'#9b8bc4']],[[130,'#f4f0e8'],[2200,'#ff78b7']],[[160,'#9b8bc4'],[2040,'#f5a65b']],[[100,'#ff78b7'],[2500,'#f4f0e8']]
   ];
+
+  const powerSpots = [[470,430],[690,260],[950,300],[440,225],[860,175],[1190,230],[740,155],[1630,225],[1120,220],[2090,155]];
 
   function resetRun() {
     level = 1;
@@ -92,18 +142,19 @@
   }
 
   function loadLevel() {
-    const template = (level - 1) % 3;
     const difficulty = 1 + (level - 1) * .06;
-    platforms = platformSets[template].map(([x,y,w,h]) => ({ x,y,w,h }));
-    treats = treatSets[template].map(([x,y], i) => ({ x,y,r:15,collected:false,phase:i*.7 }));
-    enemies = enemySets[template].map(([type,x,y,minX,maxX], i) => ({ type,x,y,w:type==='trex'?64:48,h:type==='trex'?55:47,vx:(i%2?-1:1)*(type==='trex'?78:64)*difficulty,minX,maxX,alive:true,walk:i }));
-    allies = template === 0 ? [{x:175,y:437,color:'#9b8bc4'},{x:1200,y:437,color:'#f4f0e8'}] : template === 1 ? [{x:85,y:437,color:'#ff78b7'}] : [{x:2100,y:437,color:'#f5a65b'}];
+    platforms = platformSets[level-1].map(([x,y,w,h]) => ({ x,y,w,h }));
+    const ledges = platforms.filter(p => p.y < 470);
+    const treatPoints = ledges.flatMap((p,i) => i%2 ? [[p.x+p.w*.5,p.y-42]] : [[p.x+p.w*.32,p.y-42],[p.x+p.w*.68,p.y-42]]);
+    for(let x=320+(level%3)*35;x<3120;x+=390-level*8)treatPoints.push([x,420-(level%2)*18]);
+    treats = treatPoints.map(([x,y],i)=>({x,y,r:15,collected:false,phase:i*.7}));
+    enemies = enemySets[level-1].map(([type,x,y,minX,maxX,behavior='patrol',speed],i) => ({type,x,y,baseY:y,w:type==='trex'?64:48,h:type==='trex'?55:47,vx:(i%2?-1:1)*speed*difficulty,baseSpeed:speed*difficulty,minX,maxX,behavior,alive:true,walk:i,phase:i*.9}));
+    allies = allySets[level-1].map(([x,color])=>({x,y:437,color,collected:false}));
     const bossType = level === 3 ? 'gorilla' : level === 6 ? 'trex' : level === 9 ? 'lion' : null;
     const bossHealth = bossType ? 4 + level / 3 : 0;
     boss = bossType ? { type:bossType,x:2850,y:365,w:bossType==='trex'?135:116,h:115,vx:-85*difficulty,minX:2640,maxX:3110,hp:bossHealth,maxHp:bossHealth,alive:true,walk:0,hitCooldown:0 } : null;
-    const powerSpots = [[470,430],[690,260],[950,300]];
-    powerup = {x:powerSpots[template][0],y:powerSpots[template][1],r:22,collected:false,phase:0};
-    Object.assign(player,{x:90,y:390,vx:0,vy:0,grounded:false,facing:1,invincible:0,powered:0,walk:0});
+    powerup = {x:powerSpots[level-1][0],y:powerSpots[level-1][1],r:22,collected:false,phase:0};
+    Object.assign(player,{x:90,y:390,vx:0,vy:0,grounded:false,facing:1,invincible:0,powered:0,coyote:0,jumpBuffer:0,walk:0});
     cameraX = 0;
     particles.length = 0;
     updateHud();
@@ -124,8 +175,10 @@
     canvasHint.classList.remove('hidden');
     resetRun();
     state = 'playing';
+    document.body.classList.add('game-active');
     canvas.focus();
     ensureAudio();
+    startThemeAudio(false);
   }
 
   function ensureAudio() {
@@ -142,18 +195,51 @@
     osc.connect(gain); gain.connect(audioContext.destination);
     const s = {
       jump:['square',310,520,.13,.075], treat:['sine',650,1180,.18,.09], bop:['triangle',190,105,.2,.11],
-      boss:['sawtooth',150,85,.24,.11], power:['sine',380,1450,.5,.12], hurt:['sawtooth',170,70,.28,.1], win:['triangle',450,900,.55,.12], clear:['sine',480,960,.35,.1]
+      boss:['sawtooth',150,85,.24,.11], power:['sine',380,1450,.5,.12], life:['sine',520,1320,.42,.1], hurt:['sawtooth',170,70,.28,.1], win:['triangle',450,900,.55,.12], clear:['sine',480,960,.35,.1]
     }[type];
     osc.type=s[0]; osc.frequency.setValueAtTime(s[1],now); osc.frequency.exponentialRampToValueAtTime(s[2],now+s[3]);
     gain.gain.setValueAtTime(s[4],now); gain.gain.exponentialRampToValueAtTime(.001,now+s[3]); osc.start(now); osc.stop(now+s[3]);
   }
 
+  function startMusic() {
+    if (musicTimer) return;
+    const melody = [659,784,880,784,698,659,587,659,523,659,784,659,587,523,494,587];
+    musicTimer = window.setInterval(() => {
+      if (muted || state !== 'playing' || document.hidden || !audioContext) return;
+      const now = audioContext.currentTime;
+      const note = melody[musicStep % melody.length];
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = musicStep % 4 === 0 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(note,now);
+      gain.gain.setValueAtTime(.0001,now);
+      gain.gain.exponentialRampToValueAtTime(.01,now+.025);
+      gain.gain.exponentialRampToValueAtTime(.0001,now+.2);
+      osc.connect(gain);gain.connect(audioContext.destination);osc.start(now);osc.stop(now+.22);
+      if(musicStep%4===0){
+        const bass=audioContext.createOscillator();const bassGain=audioContext.createGain();bass.type='sine';bass.frequency.value=note/4;
+        bassGain.gain.setValueAtTime(.006,now);bassGain.gain.exponentialRampToValueAtTime(.0001,now+.35);bass.connect(bassGain);bassGain.connect(audioContext.destination);bass.start(now);bass.stop(now+.36);
+      }
+      musicStep++;
+    },240);
+  }
+
+  function startThemeAudio(restart=false){
+    if(!themeAudio){startMusic();return;}
+    themeAudio.muted=muted;themeAudio.volume=.14;if(restart)themeAudio.currentTime=0;
+    const attempt=themeAudio.play();if(attempt)attempt.catch(()=>{});
+  }
+
   function rectsOverlap(a,b) { return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
 
+  function performJump() {
+    player.vy=-JUMP_SPEED;player.grounded=false;player.coyote=0;player.jumpBuffer=0;sound('jump');puff(player.x+player.w/2,player.y+player.h,'#d6c9ef',5);
+  }
+
   function jump() {
-    if (state==='playing' && player.grounded) {
-      player.vy=-JUMP_SPEED; player.grounded=false; sound('jump'); puff(player.x+player.w/2,player.y+player.h,'#d6c9ef',5);
-    }
+    if(state!=='playing')return;
+    if(player.grounded||player.coyote>0)performJump();
+    else player.jumpBuffer=.14;
   }
 
   function update(dt) {
@@ -161,6 +247,7 @@
     dt=Math.min(dt,.032);
     player.invincible=Math.max(0,player.invincible-dt);
     player.powered=Math.max(0,player.powered-dt);
+    player.jumpBuffer=Math.max(0,player.jumpBuffer-dt);
     respawnTimer=Math.max(0,respawnTimer-dt);
 
     const targetVx=(keys.right?MOVE_SPEED:0)-(keys.left?MOVE_SPEED:0);
@@ -190,6 +277,8 @@
       if (player.vy>=0 && oldBottom<=p.y+5) { player.y=p.y-player.h; player.vy=0; player.grounded=true; }
       else if (player.vy<0 && oldY>=p.y+p.h-4) { player.y=p.y+p.h; player.vy=30; }
     }
+    if(player.grounded)player.coyote=.12;else player.coyote=Math.max(0,player.coyote-dt);
+    if(player.jumpBuffer>0&&player.coyote>0)performJump();
 
     for (const treat of treats) {
       treat.phase+=dt*4;
@@ -207,9 +296,22 @@
       }
     }
 
+    for(const ally of allies){
+      if(ally.collected)continue;
+      const allyBox={x:ally.x-8,y:ally.y-8,w:54,h:56};
+      if(rectsOverlap(player,allyBox)){
+        ally.collected=true;lives++;updateHud();sound('life');puff(ally.x+19,ally.y+15,'#ff8fc5',24);
+      }
+    }
+
     for (const enemy of enemies) {
       if (!enemy.alive) continue;
-      enemy.x+=enemy.vx*dt; enemy.walk+=dt*(enemy.type==='trex'?8:6);
+      enemy.phase+=dt;
+      let speedFactor=enemy.behavior==='dart'?.55+Math.abs(Math.sin(enemy.phase*3.2))*1.15:1;
+      if(enemy.behavior==='charge'&&Math.abs(player.x-enemy.x)<270){enemy.vx=Math.sign(player.x-enemy.x||1)*enemy.baseSpeed*1.55;}
+      else enemy.vx=Math.sign(enemy.vx||1)*enemy.baseSpeed*speedFactor;
+      enemy.y=enemy.behavior==='bob'?enemy.baseY-Math.abs(Math.sin(enemy.phase*2.4))*34:enemy.baseY;
+      enemy.x+=enemy.vx*dt; enemy.walk+=dt*(enemy.type==='trex'?8:6)*speedFactor;
       if (enemy.x<enemy.minX || enemy.x+enemy.w>enemy.maxX) {
         enemy.x=Math.max(enemy.minX,Math.min(enemy.maxX-enemy.w,enemy.x)); enemy.vx*=-1;
       }
@@ -253,7 +355,7 @@
   function finishLevel() {
     if (state!=='playing') return;
     if (level<MAX_LEVEL) {
-      state='levelclear'; sound('clear');
+      state='levelclear';document.body.classList.remove('game-active');sound('clear');
       endEmoji.textContent='🍕'; endKicker.textContent=`Level ${level} complete!`; endTitle.textContent='Pizza Cupcake Party!';
       endMessage.textContent=`${heroName} cleared ${levelNames[level-1]}. ${levelNames[level]} is waiting!`;
       finalScore.textContent=`${score} collected`; restartButton.innerHTML='Next level <span aria-hidden="true">→</span>';
@@ -262,7 +364,7 @@
   }
 
   function win() {
-    state='won'; sound('win');
+    state='won';document.body.classList.remove('game-active');sound('win');
     endEmoji.textContent='🏆'; endKicker.textContent='Gorilla defeated!'; endTitle.textContent='You Win!';
     endMessage.textContent=`${heroName} cleared all ten levels of Rivie's moonlit adventure!`;
     finalScore.textContent=`${score} collected`; restartButton.innerHTML='Play again <span aria-hidden="true">↻</span>';
@@ -270,7 +372,7 @@
   }
 
   function lose() {
-    state='lost';
+    state='lost';document.body.classList.remove('game-active');
     endEmoji.textContent='🐾'; endKicker.textContent='Oh, whiskers!'; endTitle.textContent='Game Over';
     endMessage.textContent=`${heroName} needs one heroic snack before trying again.`;
     finalScore.textContent=`${score} collected`; restartButton.innerHTML='Try again <span aria-hidden="true">↻</span>';
@@ -387,7 +489,7 @@
     for(const p of platforms){ctx.fillStyle='#49365e';roundedRect(p.x,p.y,p.w,p.h+20,10);ctx.fillStyle=grass;roundedRect(p.x,p.y,p.w,Math.min(15,p.h),8);ctx.fillStyle='#d6ffd9aa';for(let x=p.x+12;x<p.x+p.w-8;x+=36){ctx.beginPath();ctx.moveTo(x,p.y+2);ctx.lineTo(x+6,p.y-9);ctx.lineTo(x+11,p.y+3);ctx.fill();}}
     for(const t of treats)if(!t.collected)drawPizzaCupcake(t);
     if(powerup && !powerup.collected)drawCatStar(powerup);
-    for(const a of allies){drawCat(a.x,a.y,38,43,a.color,1,false,0,'cat');ctx.fillStyle='#ff78b7';ctx.font='14px sans-serif';ctx.fillText('♥',a.x+12,a.y-6);}
+    for(const a of allies){if(a.collected)continue;drawCat(a.x,a.y,38,43,a.color,1,false,0,'cat');ctx.fillStyle='#ff78b7';ctx.font='900 13px Trebuchet MS';ctx.fillText('♥ +1',a.x+3,a.y-8);}
     for(const e of enemies)if(e.alive){if(e.type==='trex')drawTrex(e);else drawCat(e.x,e.y,e.w,e.h,'#c96a86',Math.sign(e.vx),true,e.walk,'cat');}
     if(boss?.alive){
       if(boss.type==='gorilla')drawGorilla(boss);else if(boss.type==='trex')drawTrex(boss);else drawCat(boss.x,boss.y,boss.w,boss.h,'#d68b43',Math.sign(boss.vx),true,boss.walk,'lion');
@@ -419,16 +521,21 @@
     endOverlay.classList.remove('visible');
     if(state==='levelclear'){level++;loadLevel();}
     else resetRun();
-    state='playing';canvas.focus();
+    state='playing';document.body.classList.add('game-active');canvas.focus();
   });
-  document.getElementById('soundButton').addEventListener('click',e=>{muted=!muted;e.currentTarget.textContent=muted?'🔇':'🔊';e.currentTarget.setAttribute('aria-label',muted?'Unmute sounds':'Mute sounds');});
+  document.getElementById('soundButton').addEventListener('click',e=>{muted=!muted;if(themeAudio)themeAudio.muted=muted;if(!muted){ensureAudio();startThemeAudio(false);}e.currentTarget.textContent=muted?'🔇':'🔊';e.currentTarget.setAttribute('aria-label',muted?'Unmute sounds':'Mute sounds');});
   document.getElementById('homeButton').addEventListener('click',()=>{
-    keys.left=keys.right=keys.jump=false;endOverlay.classList.remove('visible');resetRun();state='menu';startOverlay.classList.add('visible');heroNameInput.focus();
+    keys.left=keys.right=keys.jump=false;document.body.classList.remove('game-active');endOverlay.classList.remove('visible');resetRun();state='menu';startOverlay.classList.add('visible');heroNameInput.focus();
+  });
+  document.getElementById('fullscreenButton').addEventListener('click',()=>{
+    const shell=document.querySelector('.game-shell');if(!document.fullscreenElement)shell.requestFullscreen?.();else document.exitFullscreen?.();
   });
   heroNameInput.addEventListener('keydown',e=>{if(e.key==='Enter')startGame();});
+  window.addEventListener('pointerdown',()=>startThemeAudio(false),{once:true});
 
-  window.rivieQuest={getState:()=>({state,level,levelName:levelNames[level-1],score,lives,heroKind,boss:boss?{type:boss.type,alive:boss.alive,hp:boss.hp}:null,powerup:{collected:powerup?.collected,powered:Math.ceil(player.powered)},player:{x:Math.round(player.x),y:Math.round(player.y),grounded:player.grounded},treatsLeft:treats.filter(t=>!t.collected).length,enemiesLeft:enemies.filter(e=>e.alive).length})};
+  window.rivieQuest={getState:()=>({state,level,levelName:levelNames[level-1],score,lives,heroKind,boss:boss?{type:boss.type,alive:boss.alive,hp:boss.hp}:null,powerup:{collected:powerup?.collected,powered:Math.ceil(player.powered)},alliesLeft:allies.filter(a=>!a.collected).length,player:{x:Math.round(player.x),y:Math.round(player.y),grounded:player.grounded},treatsLeft:treats.filter(t=>!t.collected).length,enemiesLeft:enemies.filter(e=>e.alive).length})};
 
   resetRun();
+  startThemeAudio(true);
   requestAnimationFrame(loop);
 })();
