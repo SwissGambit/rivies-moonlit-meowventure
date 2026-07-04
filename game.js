@@ -3,7 +3,9 @@
 
   const canvas = document.getElementById('gameCanvas');
   const isTouchDevice = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
-  if (isTouchDevice && window.innerWidth < window.innerHeight) canvas.width = 720;
+  const forceMobilePreview = new URLSearchParams(window.location.search).get('mobile') === '1';
+  const isPortraitMobile = (isTouchDevice || forceMobilePreview) && window.innerWidth < window.innerHeight;
+  if (isPortraitMobile){canvas.width=480;canvas.height=860;}
   const ctx = canvas.getContext('2d');
   const scoreEl = document.getElementById('score');
   const livesEl = document.getElementById('lives');
@@ -21,15 +23,16 @@
 
   const W = canvas.width;
   const H = canvas.height;
+  const verticalOffset = Math.max(0,H-540);
   const WORLD_W = 3250;
   const GRAVITY = 1850;
   const MOVE_SPEED = 285;
   const JUMP_SPEED = isTouchDevice ? 715 : 680;
   const MAX_LEVEL = 10;
   const levelNames = [
-    'Riviewood', "Grayson's Cat Town", 'Parker Penguin Flap', 'Whiskerwick Harbor',
-    'Meowmallow Meadows', 'Purrlock Peak', 'Tabby Tail Tunnels', 'Calico Cupcake Cove',
-    'Nine Lives Nebula', 'Catnap Castle'
+    'Riviewood', "Grayson's Cat Town", 'Parker Penguin Flap', "Presley's Purrfect Harbor",
+    "Malachi's Meowmallow Meadows", "Solomon's Scratching Peak", "Zane's Tabby Tail Tunnels",
+    "Nori's Calico Cupcake Cove", "Adriel's Nine Lives Nebula", "Lily's Catnap Castle"
   ];
   const keys = { left: false, right: false, jump: false };
 
@@ -143,18 +146,18 @@
 
   function loadLevel() {
     const difficulty = 1 + (level - 1) * .06;
-    platforms = platformSets[level-1].map(([x,y,w,h]) => ({ x,y,w,h }));
+    platforms = platformSets[level-1].map(([x,y,w,h]) => ({x,y:y+verticalOffset,w,h}));
     const ledges = platforms.filter(p => p.y < 470);
     const treatPoints = ledges.flatMap((p,i) => i%2 ? [[p.x+p.w*.5,p.y-42]] : [[p.x+p.w*.32,p.y-42],[p.x+p.w*.68,p.y-42]]);
-    for(let x=320+(level%3)*35;x<3120;x+=390-level*8)treatPoints.push([x,420-(level%2)*18]);
+    for(let x=320+(level%3)*35;x<3120;x+=390-level*8)treatPoints.push([x,420+verticalOffset-(level%2)*18]);
     treats = treatPoints.map(([x,y],i)=>({x,y,r:15,collected:false,phase:i*.7}));
-    enemies = enemySets[level-1].map(([type,x,y,minX,maxX,behavior='patrol',speed],i) => ({type,x,y,baseY:y,w:type==='trex'?64:48,h:type==='trex'?55:47,vx:(i%2?-1:1)*speed*difficulty,baseSpeed:speed*difficulty,minX,maxX,behavior,alive:true,walk:i,phase:i*.9}));
-    allies = allySets[level-1].map(([x,color])=>({x,y:437,color,collected:false}));
+    enemies = enemySets[level-1].map(([type,x,y,minX,maxX,behavior='patrol',speed],i) => ({type,x,y:y+verticalOffset,baseY:y+verticalOffset,w:type==='trex'?64:48,h:type==='trex'?55:47,vx:(i%2?-1:1)*speed*difficulty,baseSpeed:speed*difficulty,minX,maxX,behavior,alive:true,walk:i,phase:i*.9}));
+    allies = allySets[level-1].map(([x,color])=>({x,y:437+verticalOffset,color,collected:false}));
     const bossType = level === 3 ? 'gorilla' : level === 6 ? 'trex' : level === 9 ? 'lion' : null;
     const bossHealth = bossType ? 4 + level / 3 : 0;
-    boss = bossType ? { type:bossType,x:2850,y:365,w:bossType==='trex'?135:116,h:115,vx:-85*difficulty,minX:2640,maxX:3110,hp:bossHealth,maxHp:bossHealth,alive:true,walk:0,hitCooldown:0 } : null;
-    powerup = {x:powerSpots[level-1][0],y:powerSpots[level-1][1],r:22,collected:false,phase:0};
-    Object.assign(player,{x:90,y:390,vx:0,vy:0,grounded:false,facing:1,invincible:0,powered:0,coyote:0,jumpBuffer:0,walk:0});
+    boss = bossType ? { type:bossType,x:2850,y:365+verticalOffset,w:bossType==='trex'?135:116,h:115,vx:-85*difficulty,minX:2640,maxX:3110,hp:bossHealth,maxHp:bossHealth,alive:true,walk:0,hitCooldown:0 } : null;
+    powerup = {x:powerSpots[level-1][0],y:powerSpots[level-1][1]+verticalOffset,r:22,collected:false,phase:0};
+    Object.assign(player,{x:90,y:390+verticalOffset,vx:0,vy:0,grounded:false,facing:1,invincible:0,powered:0,coyote:0,jumpBuffer:0,walk:0});
     cameraX = 0;
     particles.length = 0;
     updateHud();
@@ -349,7 +352,7 @@
     sound('hurt'); lives--; updateHud();
     if (lives<=0) { lose(); return; }
     player.invincible=1.5; respawnTimer=.25;
-    Object.assign(player,{x:Math.max(70,player.x-150),y:fell?330:Math.max(120,player.y-55),vx:fell?0:-player.facing*190,vy:-320,grounded:false});
+    Object.assign(player,{x:Math.max(70,player.x-150),y:fell?330+verticalOffset:Math.max(120+verticalOffset,player.y-55),vx:fell?0:-player.facing*190,vy:-320,grounded:false});
   }
 
   function finishLevel() {
@@ -471,14 +474,15 @@
     const palette=(level-1)%3;
     const colors=palette===0?['#554497','#8e78c2','#e89aab']:palette===1?['#24496f','#587fa3','#c888b0']:['#30204f','#674673','#c76583'];
     const gradient=ctx.createLinearGradient(0,0,0,H);gradient.addColorStop(0,colors[0]);gradient.addColorStop(.55,colors[1]);gradient.addColorStop(1,colors[2]);ctx.fillStyle=gradient;ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#a8efd0';ctx.beginPath();ctx.arc(790,92,47,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#a8efd0';ctx.beginPath();ctx.arc(770,126,11,0,Math.PI*2);ctx.arc(792,132,9,0,Math.PI*2);ctx.arc(812,126,12,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#5b3a43';for(const [x,y,r] of [[773,78,6],[805,67,5],[817,103,7],[784,110,4],[798,88,3]]){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
-    ctx.fillStyle='rgba(255,255,255,.28)';ctx.beginPath();ctx.arc(776,72,9,0,Math.PI*2);ctx.fill();
+    const moonX=Math.min(790,W-76);
+    ctx.fillStyle='#a8efd0';ctx.beginPath();ctx.arc(moonX,92,47,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#a8efd0';ctx.beginPath();ctx.arc(moonX-20,126,11,0,Math.PI*2);ctx.arc(moonX+2,132,9,0,Math.PI*2);ctx.arc(moonX+22,126,12,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#5b3a43';for(const [dx,y,r] of [[-17,78,6],[15,67,5],[27,103,7],[-6,110,4],[8,88,3]]){ctx.beginPath();ctx.arc(moonX+dx,y,r,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle='rgba(255,255,255,.28)';ctx.beginPath();ctx.arc(moonX-14,72,9,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='rgba(255,255,255,.65)';for(let i=0;i<28;i++){const x=(i*137-cameraX*.08)%1100;const y=24+(i*67)%210;const s=i%4===0?2.2:1.2;ctx.fillRect(x,y,s,s);}
     for(const c of clouds){const x=c.x-cameraX*.18;if(x<-160||x>W+160)continue;ctx.fillStyle='rgba(255,239,244,.2)';ctx.beginPath();ctx.ellipse(x,c.y,80*c.s,24*c.s,0,0,Math.PI*2);ctx.ellipse(x-42*c.s,c.y+5,48*c.s,18*c.s,0,0,Math.PI*2);ctx.ellipse(x+43*c.s,c.y+6,52*c.s,18*c.s,0,0,Math.PI*2);ctx.fill();}
-    ctx.fillStyle='#4d3d79';ctx.beginPath();ctx.moveTo(0,400);for(let x=0;x<=W+100;x+=120)ctx.lineTo(x,285+Math.sin((x+cameraX*.12)*.008)*45);ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
-    ctx.fillStyle='#3c315f';ctx.beginPath();ctx.moveTo(0,430);for(let x=0;x<=W+100;x+=95)ctx.lineTo(x,360+Math.sin((x+cameraX*.25)*.013)*35);ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
+    ctx.fillStyle='#4d3d79';ctx.beginPath();ctx.moveTo(0,400+verticalOffset);for(let x=0;x<=W+100;x+=120)ctx.lineTo(x,285+verticalOffset+Math.sin((x+cameraX*.12)*.008)*45);ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
+    ctx.fillStyle='#3c315f';ctx.beginPath();ctx.moveTo(0,430+verticalOffset);for(let x=0;x<=W+100;x+=95)ctx.lineTo(x,360+verticalOffset+Math.sin((x+cameraX*.25)*.013)*35);ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
     ctx.textAlign='center';ctx.fillStyle='rgba(255,250,242,.9)';ctx.font='900 18px Trebuchet MS, sans-serif';ctx.fillText('Weird Lull - River',W/2,38);
     ctx.font='700 10px Trebuchet MS, sans-serif';ctx.fillStyle='rgba(255,250,242,.65)';ctx.fillText(`LEVEL ${level} · ${levelNames[level-1].toUpperCase()}`,W/2,56);ctx.textAlign='start';
   }
@@ -495,7 +499,8 @@
       if(boss.type==='gorilla')drawGorilla(boss);else if(boss.type==='trex')drawTrex(boss);else drawCat(boss.x,boss.y,boss.w,boss.h,'#d68b43',Math.sign(boss.vx),true,boss.walk,'lion');
       ctx.fillStyle='#241735bb';roundedRect(2705,190,330,42,12);ctx.fillStyle='#fff';ctx.font='900 12px Trebuchet MS';ctx.fillText(`${boss.type.toUpperCase()} BOSS`,2720,207);ctx.fillStyle='#ef5b86';ctx.fillRect(2820,198,195*(boss.hp/boss.maxHp),20);ctx.strokeStyle='#fff6';ctx.strokeRect(2820,198,195,20);
     }
-    ctx.fillStyle='#e5d9f3';ctx.fillRect(3170,205,8,275);ctx.fillStyle=boss?.alive?'#6d6387':'#ffd15c';ctx.beginPath();ctx.arc(3174,197,10,0,Math.PI*2);ctx.fill();ctx.fillStyle=boss?.alive?'#6d6387':'#ef5b86';ctx.beginPath();ctx.moveTo(3178,220);ctx.lineTo(3102,238);ctx.lineTo(3178,272);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.font='23px sans-serif';ctx.fillText(boss?.alive?'🔒':'🍕',3124,252);
+    const flagOffset=verticalOffset;
+    ctx.fillStyle='#e5d9f3';ctx.fillRect(3170,205+flagOffset,8,275);ctx.fillStyle=boss?.alive?'#6d6387':'#ffd15c';ctx.beginPath();ctx.arc(3174,197+flagOffset,10,0,Math.PI*2);ctx.fill();ctx.fillStyle=boss?.alive?'#6d6387':'#ef5b86';ctx.beginPath();ctx.moveTo(3178,220+flagOffset);ctx.lineTo(3102,238+flagOffset);ctx.lineTo(3178,272+flagOffset);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.font='23px sans-serif';ctx.fillText(boss?.alive?'🔒':'🍕',3124,252+flagOffset);
     if(player.powered>0){ctx.save();ctx.globalAlpha=.36+.18*Math.sin(player.powered*8);ctx.fillStyle='#fff59a';ctx.beginPath();ctx.arc(player.x+player.w/2,player.y+player.h/2,42,0,Math.PI*2);ctx.fill();ctx.restore();}
     drawHero();
     for(const p of particles){ctx.globalAlpha=Math.max(0,p.life*2);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;ctx.restore();
