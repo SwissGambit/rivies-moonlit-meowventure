@@ -21,6 +21,7 @@
         <div class="hud-chip"><span aria-hidden="true">🍕</span><span>Treats</span><strong id="score">0</strong></div>
         <div class="hud-chip"><span>Level</span><strong id="levelNumber">1</strong></div>
         <div class="hud-chip"><span aria-hidden="true">🐟</span><span>Lives</span><strong id="lives">9</strong></div>
+        <button id="leaderboardButton" class="icon-button" type="button" aria-label="Open leaderboard" title="Leaderboard">🏆</button>
         <button id="homeButton" class="icon-button" type="button" aria-label="Return to character selection" title="Home">🏠</button>
         <button id="soundButton" class="icon-button" type="button" aria-label="Mute sounds" title="Mute sounds">🔊</button>
       </div>
@@ -75,6 +76,16 @@
           <p id="endMessage">You reached the starlight flag.</p>
           <div class="final-score"><span>Pizza cupcakes</span><strong id="finalScore">0</strong></div>
           <button id="restartButton" class="primary-button" type="button">Play again <span aria-hidden="true">↻</span></button>
+        </div>
+      </div>
+
+      <div id="leaderboardOverlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="leaderboardTitle">
+        <div class="card leaderboard-card">
+          <div class="end-emoji" aria-hidden="true">🏆</div>
+          <p class="eyebrow">Pizza cupcake champions</p>
+          <h2 id="leaderboardTitle">Top 10 Players</h2>
+          <ol id="leaderboardList" class="leaderboard-list"></ol>
+          <button id="closeLeaderboardButton" class="primary-button" type="button">Back to game</button>
         </div>
       </div>
     </section>
