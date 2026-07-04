@@ -72,6 +72,15 @@ input[type="text"], #heroName { display: block; width: 100%; margin-top: 5px; pa
 .end-card { width: min(430px, 95%); }
 .final-score { display: flex; justify-content: space-between; align-items: center; margin: 18px 0; padding: 13px 16px; color: var(--muted); background: rgba(255,255,255,.06); border-radius: 13px; font-size: 13px; }
 .final-score strong { color: var(--gold); font-size: 20px; }
+.leaderboard-card { width: min(460px, 96%); }
+.leaderboard-list { min-height: 190px; margin: 16px 0 20px; padding: 8px 12px 8px 42px; color: var(--muted); background: rgba(255,255,255,.055); border-radius: 15px; text-align: left; }
+.leaderboard-list li { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.leaderboard-list li:last-child { border-bottom: 0; }
+.leaderboard-list li::marker { color: var(--gold); font-weight: 900; }
+.leaderboard-entry { display: flex; justify-content: space-between; gap: 16px; }
+.leaderboard-entry strong { color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard-entry span { flex: none; color: var(--gold); font-weight: 900; }
+.leaderboard-empty { list-style: none; margin-left: -28px; padding: 58px 8px !important; text-align: center; }
 
 .mobile-controls { display: none; justify-content: space-between; align-items: flex-end; touch-action: none; pointer-events: none; }
 .move-controls { display: flex; gap: 12px; }
@@ -126,6 +135,8 @@ footer i { width: 4px; height: 4px; border-radius: 50%; background: var(--berry)
   html, body { width: 100%; height: 100%; overflow: hidden; }
   .game-shell { width: 100%; height: 100dvh; margin: 0; padding: 0 6px; display: flex; flex-direction: column; }
   .topbar { flex: 0 0 54px; min-height: 54px; margin: 0; }
+  .brand { display: none; }
+  .hud { width: 100%; justify-content: center; }
   .stage-wrap { flex: none; width: 100%; height: calc(100dvh - 150px); min-height: 0; border-radius: 16px; }
   canvas { width: 100%; height: 100%; }
   .overlay { overflow-y: auto; }
@@ -133,4 +144,6 @@ footer i { width: 4px; height: 4px; border-radius: 50%; background: var(--berry)
   .hud-chip { padding-inline: 7px; }
   .game-active .mobile-controls { left: 9px !important; right: 9px !important; bottom: 8px; height: 84px; align-items: center; }
   .mobile-controls button { width: 72px; height: 66px; }
+  .leaderboard-card { padding: 18px; }
+  .leaderboard-list { min-height: 220px; max-height: 360px; overflow-y: auto; }
 }
