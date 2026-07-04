@@ -18,6 +18,8 @@
   const endEmoji = document.getElementById('endEmoji');
   const finalScore = document.getElementById('finalScore');
   const restartButton = document.getElementById('restartButton');
+  const leaderboardOverlay = document.getElementById('leaderboardOverlay');
+  const leaderboardList = document.getElementById('leaderboardList');
   const canvasHint = document.getElementById('canvasHint');
   const heroNameInput = document.getElementById('heroName');
 
@@ -46,8 +48,17 @@
   let audioContext = null;
   let musicTimer = null;
   let musicStep = 0;
+  let themeFinished = false;
+  let themeStarted = false;
+  let leaderboardReturnState = 'menu';
+  let scoreRecorded = false;
   const themeAudio = window.RIVIE_THEME_AUDIO ? new Audio(window.RIVIE_THEME_AUDIO) : null;
-  if(themeAudio){themeAudio.loop=true;themeAudio.preload='auto';themeAudio.volume=.14;}
+  if(themeAudio){
+    themeAudio.loop=false;themeAudio.preload='auto';themeAudio.volume=.14;
+    themeAudio.addEventListener('playing',()=>{themeStarted=true;});
+    themeAudio.addEventListener('ended',()=>{themeFinished=true;startMusic();});
+    themeAudio.addEventListener('error',()=>{themeFinished=true;startMusic();});
+  }
   let heroName = 'Rivie';
   let heroColor = '#f5a65b';
   let heroKind = 'cat';
@@ -141,6 +152,7 @@
     level = 1;
     score = 0;
     lives = 9;
+    scoreRecorded = false;
     loadLevel();
   }
 
@@ -151,7 +163,10 @@
     const treatPoints = ledges.flatMap((p,i) => i%2 ? [[p.x+p.w*.5,p.y-42]] : [[p.x+p.w*.32,p.y-42],[p.x+p.w*.68,p.y-42]]);
     for(let x=320+(level%3)*35;x<3120;x+=390-level*8)treatPoints.push([x,420+verticalOffset-(level%2)*18]);
     treats = treatPoints.map(([x,y],i)=>({x,y,r:15,collected:false,phase:i*.7}));
-    enemies = enemySets[level-1].map(([type,x,y,minX,maxX,behavior='patrol',speed],i) => ({type,x,y:y+verticalOffset,baseY:y+verticalOffset,w:type==='trex'?64:48,h:type==='trex'?55:47,vx:(i%2?-1:1)*speed*difficulty,baseSpeed:speed*difficulty,minX,maxX,behavior,alive:true,walk:i,phase:i*.9}));
+    enemies = enemySets[level-1].map(([type,x,y,minX,maxX,behavior='patrol',speed],i) => {
+      if(type==='trex'&&level>=5&&i%3===0)behavior='fly';
+      return {type,x,y:y+verticalOffset,baseY:y+verticalOffset,w:type==='trex'?64:48,h:type==='trex'?55:47,vx:(i%2?-1:1)*speed*difficulty,baseSpeed:speed*difficulty,minX,maxX,behavior,turnLock:0,alive:true,walk:i,phase:i*.9};
+    });
     allies = allySets[level-1].map(([x,color])=>({x,y:437+verticalOffset,color,collected:false}));
     const bossType = level === 3 ? 'gorilla' : level === 6 ? 'trex' : level === 9 ? 'lion' : null;
     const bossHealth = bossType ? 4 + level / 3 : 0;
@@ -167,6 +182,24 @@
     scoreEl.textContent = score;
     livesEl.textContent = lives;
     levelEl.textContent = level;
+  }
+
+  function readLeaderboard(){
+    try{return JSON.parse(localStorage.getItem('rivieLeaderboard')||'[]');}catch{return [];}
+  }
+
+  function renderLeaderboard(){
+    const board=readLeaderboard();leaderboardList.replaceChildren();
+    if(!board.length){const empty=document.createElement('li');empty.className='leaderboard-empty';empty.textContent='Finish a run to claim the first spot!';leaderboardList.appendChild(empty);return;}
+    board.forEach(entry=>{const item=document.createElement('li');const row=document.createElement('div');row.className='leaderboard-entry';const name=document.createElement('strong');name.textContent=entry.name;const result=document.createElement('span');result.textContent=`${entry.score} 🍕🧁`;row.append(name,result);item.appendChild(row);leaderboardList.appendChild(item);});
+  }
+
+  function recordScore(){
+    if(scoreRecorded)return;scoreRecorded=true;
+    const board=readLeaderboard();board.push({name:(heroName||'Player').slice(0,12),score,finishedAt:Date.now()});
+    board.sort((a,b)=>b.score-a.score||a.finishedAt-b.finishedAt);board.splice(10);
+    try{localStorage.setItem('rivieLeaderboard',JSON.stringify(board));}catch{}
+    renderLeaderboard();
   }
 
   function startGame() {
@@ -229,7 +262,8 @@
 
   function startThemeAudio(restart=false){
     if(!themeAudio){startMusic();return;}
-    themeAudio.muted=muted;themeAudio.volume=.14;if(restart)themeAudio.currentTime=0;
+    if(themeFinished){startMusic();return;}
+    themeAudio.muted=muted;themeAudio.volume=.14;if(restart&&!themeStarted)themeAudio.currentTime=0;
     const attempt=themeAudio.play();if(attempt)attempt.catch(()=>{});
   }
 
@@ -309,14 +343,14 @@
 
     for (const enemy of enemies) {
       if (!enemy.alive) continue;
-      enemy.phase+=dt;
+      enemy.phase+=dt;enemy.turnLock=Math.max(0,enemy.turnLock-dt);
       let speedFactor=enemy.behavior==='dart'?.55+Math.abs(Math.sin(enemy.phase*3.2))*1.15:1;
-      if(enemy.behavior==='charge'&&Math.abs(player.x-enemy.x)<270){enemy.vx=Math.sign(player.x-enemy.x||1)*enemy.baseSpeed*1.55;}
+      if(enemy.behavior==='charge'&&enemy.turnLock<=0&&Math.abs(player.x-enemy.x)<270&&player.x>=enemy.minX&&player.x<=enemy.maxX){enemy.vx=Math.sign(player.x-enemy.x||1)*enemy.baseSpeed*1.55;}
       else enemy.vx=Math.sign(enemy.vx||1)*enemy.baseSpeed*speedFactor;
-      enemy.y=enemy.behavior==='bob'?enemy.baseY-Math.abs(Math.sin(enemy.phase*2.4))*34:enemy.baseY;
+      enemy.y=enemy.behavior==='bob'?enemy.baseY-Math.abs(Math.sin(enemy.phase*2.4))*34:enemy.behavior==='fly'?enemy.baseY-70+Math.sin(enemy.phase*2.8)*30:enemy.baseY;
       enemy.x+=enemy.vx*dt; enemy.walk+=dt*(enemy.type==='trex'?8:6)*speedFactor;
       if (enemy.x<enemy.minX || enemy.x+enemy.w>enemy.maxX) {
-        enemy.x=Math.max(enemy.minX,Math.min(enemy.maxX-enemy.w,enemy.x)); enemy.vx*=-1;
+        const hitLeft=enemy.x<enemy.minX;enemy.x=Math.max(enemy.minX,Math.min(enemy.maxX-enemy.w,enemy.x));enemy.vx=(hitLeft?1:-1)*enemy.baseSpeed;enemy.turnLock=.55;
       }
       if (rectsOverlap(player,enemy) && player.powered>0) {
         enemy.alive=false; sound('bop'); puff(enemy.x+enemy.w/2,enemy.y+enemy.h/2,'#fff59a',18);
@@ -359,7 +393,8 @@
     if (state!=='playing') return;
     if (level<MAX_LEVEL) {
       state='levelclear';document.body.classList.remove('game-active');sound('clear');
-      endEmoji.textContent='🍕'; endKicker.textContent=`Level ${level} complete!`; endTitle.textContent='Pizza Cupcake Party!';
+      const praise=level%2?'Well done!':'Good Job!';
+      endEmoji.textContent='🦩'; endKicker.textContent=`Level ${level} complete!`; endTitle.textContent=praise;
       endMessage.textContent=`${heroName} cleared ${levelNames[level-1]}. ${levelNames[level]} is waiting!`;
       finalScore.textContent=`${score} collected`; restartButton.innerHTML='Next level <span aria-hidden="true">→</span>';
       endOverlay.classList.add('visible');
@@ -368,6 +403,7 @@
 
   function win() {
     state='won';document.body.classList.remove('game-active');sound('win');
+    recordScore();
     endEmoji.textContent='🏆'; endKicker.textContent='Gorilla defeated!'; endTitle.textContent='You Win!';
     endMessage.textContent=`${heroName} cleared all ten levels of Rivie's moonlit adventure!`;
     finalScore.textContent=`${score} collected`; restartButton.innerHTML='Play again <span aria-hidden="true">↻</span>';
@@ -376,6 +412,7 @@
 
   function lose() {
     state='lost';document.body.classList.remove('game-active');
+    recordScore();
     endEmoji.textContent='🐾'; endKicker.textContent='Oh, whiskers!'; endTitle.textContent='Game Over';
     endMessage.textContent=`${heroName} needs one heroic snack before trying again.`;
     finalScore.textContent=`${score} collected`; restartButton.innerHTML='Try again <span aria-hidden="true">↻</span>';
@@ -458,6 +495,13 @@
     ctx.fillStyle='#ef5b69';for(const [x,yy] of [[-5,-3],[5,-1],[1,-10]]){ctx.beginPath();ctx.arc(x,yy,2.8,0,Math.PI*2);ctx.fill();}ctx.restore();
   }
 
+  function drawFinishFlamingo(){
+    const x=3065,y=420+verticalOffset;const message=level%2?'Well done!':'Good job!';
+    ctx.fillStyle='rgba(255,255,255,.94)';roundedRect(x-70,y-58,122,34,12);
+    ctx.fillStyle='#4d315e';ctx.font='900 12px Trebuchet MS';ctx.textAlign='center';ctx.fillText(message,x-9,y-36);ctx.textAlign='start';
+    ctx.fillStyle='#ff78b7';ctx.font='48px sans-serif';ctx.fillText('🦩',x-26,y+35);
+  }
+
   function drawCatStar(s) {
     const y=s.y+Math.sin(s.phase)*7;
     ctx.save();ctx.translate(s.x,y);ctx.rotate(Math.sin(s.phase*.7)*.12);
@@ -499,6 +543,7 @@
       if(boss.type==='gorilla')drawGorilla(boss);else if(boss.type==='trex')drawTrex(boss);else drawCat(boss.x,boss.y,boss.w,boss.h,'#d68b43',Math.sign(boss.vx),true,boss.walk,'lion');
       ctx.fillStyle='#241735bb';roundedRect(2705,190,330,42,12);ctx.fillStyle='#fff';ctx.font='900 12px Trebuchet MS';ctx.fillText(`${boss.type.toUpperCase()} BOSS`,2720,207);ctx.fillStyle='#ef5b86';ctx.fillRect(2820,198,195*(boss.hp/boss.maxHp),20);ctx.strokeStyle='#fff6';ctx.strokeRect(2820,198,195,20);
     }
+    drawFinishFlamingo();
     const flagOffset=verticalOffset;
     ctx.fillStyle='#e5d9f3';ctx.fillRect(3170,205+flagOffset,8,275);ctx.fillStyle=boss?.alive?'#6d6387':'#ffd15c';ctx.beginPath();ctx.arc(3174,197+flagOffset,10,0,Math.PI*2);ctx.fill();ctx.fillStyle=boss?.alive?'#6d6387':'#ef5b86';ctx.beginPath();ctx.moveTo(3178,220+flagOffset);ctx.lineTo(3102,238+flagOffset);ctx.lineTo(3178,272+flagOffset);ctx.closePath();ctx.fill();ctx.fillStyle='#fff';ctx.font='23px sans-serif';ctx.fillText(boss?.alive?'🔒':'🍕',3124,252+flagOffset);
     if(player.powered>0){ctx.save();ctx.globalAlpha=.36+.18*Math.sin(player.powered*8);ctx.fillStyle='#fff59a';ctx.beginPath();ctx.arc(player.x+player.w/2,player.y+player.h/2,42,0,Math.PI*2);ctx.fill();ctx.restore();}
@@ -530,7 +575,13 @@
   });
   document.getElementById('soundButton').addEventListener('click',e=>{muted=!muted;if(themeAudio)themeAudio.muted=muted;if(!muted){ensureAudio();startThemeAudio(false);}e.currentTarget.textContent=muted?'🔇':'🔊';e.currentTarget.setAttribute('aria-label',muted?'Unmute sounds':'Mute sounds');});
   document.getElementById('homeButton').addEventListener('click',()=>{
-    keys.left=keys.right=keys.jump=false;document.body.classList.remove('game-active');endOverlay.classList.remove('visible');resetRun();state='menu';startOverlay.classList.add('visible');heroNameInput.focus();
+    keys.left=keys.right=keys.jump=false;document.body.classList.remove('game-active');endOverlay.classList.remove('visible');leaderboardOverlay.classList.remove('visible');resetRun();state='menu';startOverlay.classList.add('visible');heroNameInput.focus();
+  });
+  document.getElementById('leaderboardButton').addEventListener('click',()=>{
+    leaderboardReturnState=state==='leaderboard'?'menu':state;keys.left=keys.right=keys.jump=false;state='leaderboard';document.body.classList.remove('game-active');renderLeaderboard();leaderboardOverlay.classList.add('visible');
+  });
+  document.getElementById('closeLeaderboardButton').addEventListener('click',()=>{
+    leaderboardOverlay.classList.remove('visible');state=leaderboardReturnState;if(state==='playing')document.body.classList.add('game-active');canvas.focus();
   });
   document.getElementById('fullscreenButton').addEventListener('click',()=>{
     const shell=document.querySelector('.game-shell');if(!document.fullscreenElement)shell.requestFullscreen?.();else document.exitFullscreen?.();
