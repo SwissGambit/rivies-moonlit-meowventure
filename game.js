@@ -32,9 +32,9 @@
   const JUMP_SPEED = isTouchDevice ? 715 : 680;
   const MAX_LEVEL = 10;
   const levelNames = [
-    'Riviewood', "Grayson's Cat Town", 'Parker Penguin Flap', "Presley's Purrfect Harbor",
-    "Malachi's Meowmallow Meadows", "Solomon's Scratching Peak", "Zane's Tabby Tail Tunnels",
-    "Nori's Calico Cupcake Cove", "Adriel's Nine Lives Nebula", "Lily's Catnap Castle"
+    'Riviewood', "Grayson's Cat Town", 'Parker Penguin Flap', "Presley's Purrfect Place",
+    "Malachi's Mane", "Solomon's Peak", "Zane's Mountain",
+    "Nori's Catventure", "Adriel's Trail", "Lily's Flamingo Mango"
   ];
   const keys = { left: false, right: false, jump: false };
 
@@ -393,7 +393,7 @@
     if (state!=='playing') return;
     if (level<MAX_LEVEL) {
       state='levelclear';document.body.classList.remove('game-active');sound('clear');
-      const praise=level%2?'Well done!':'Good Job!';
+      const praise=level%2?'Well done Nino!':'Good Job Nino!';
       endEmoji.textContent='🦩'; endKicker.textContent=`Level ${level} complete!`; endTitle.textContent=praise;
       endMessage.textContent=`${heroName} cleared ${levelNames[level-1]}. ${levelNames[level]} is waiting!`;
       finalScore.textContent=`${score} collected`; restartButton.innerHTML='Next level <span aria-hidden="true">→</span>';
@@ -405,7 +405,7 @@
     state='won';document.body.classList.remove('game-active');sound('win');
     recordScore();
     endEmoji.textContent='🏆'; endKicker.textContent='Gorilla defeated!'; endTitle.textContent='You Win!';
-    endMessage.textContent=`${heroName} cleared all ten levels of Rivie's moonlit adventure!`;
+    endMessage.textContent=`${heroName} Congratulations brave Nino. You cleared all ten levels of Rivie's moonlit adventure! You've made El Padre very proud!`;
     finalScore.textContent=`${score} collected`; restartButton.innerHTML='Play again <span aria-hidden="true">↻</span>';
     endOverlay.classList.add('visible');
   }
