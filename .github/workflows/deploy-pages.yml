@@ -27,7 +27,7 @@ jobs:
       - name: Prepare public site
         run: |
           mkdir public
-          cp index.html styles.css game.js public/
+          cp index.html styles.css game.js audio-data.js public/
           touch public/.nojekyll
 
       - name: Configure GitHub Pages
