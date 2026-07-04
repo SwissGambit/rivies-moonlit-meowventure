@@ -22,6 +22,7 @@
   const leaderboardList = document.getElementById('leaderboardList');
   const canvasHint = document.getElementById('canvasHint');
   const heroNameInput = document.getElementById('heroName');
+  const pauseButton = document.getElementById('pauseButton');
 
   const W = canvas.width;
   const H = canvas.height;
@@ -107,8 +108,8 @@
     ],
     [
       [0,480,360,60],[430,480,430,60],[940,480,260,60],[1280,480,620,60],[1980,480,320,60],[2370,480,390,60],[2840,480,410,60],
-      [120,335,150,24],[475,285,145,24],[690,205,145,24],[970,355,150,24],[1320,300,170,24],
-      [1570,220,150,24],[1810,350,145,24],[2020,285,155,24],[2410,330,150,24],[2600,245,145,24],[2900,315,165,24]
+      [120,365,150,24],[475,345,145,24],[690,270,145,24],[970,370,150,24],[1320,355,170,24],
+      [1570,285,150,24],[1810,365,145,24],[2020,350,155,24],[2410,360,150,24],[2600,300,145,24],[2900,350,165,24]
     ],
     [
       [0,480,600,60],[680,480,290,60],[1050,480,650,60],[1780,480,270,60],[2130,480,590,60],[2800,480,450,60],
@@ -200,6 +201,27 @@
     board.sort((a,b)=>b.score-a.score||a.finishedAt-b.finishedAt);board.splice(10);
     try{localStorage.setItem('rivieLeaderboard',JSON.stringify(board));}catch{}
     renderLeaderboard();
+  }
+
+  function syncPauseButton() {
+    const canPause = state === 'playing' || state === 'paused';
+    const paused = state === 'paused';
+    pauseButton.disabled = !canPause;
+    pauseButton.textContent = paused ? '▶️' : '⏸️';
+    pauseButton.setAttribute('aria-label', paused ? 'Resume game' : 'Pause game');
+    pauseButton.title = paused ? 'Resume game' : 'Pause game';
+  }
+
+  function setPaused(paused) {
+    if (paused && state === 'playing') {
+      state = 'paused';
+      keys.left = keys.right = keys.jump = false;
+    } else if (!paused && state === 'paused') {
+      state = 'playing';
+      lastTime = performance.now();
+      canvas.focus();
+    }
+    syncPauseButton();
   }
 
   function startGame() {
@@ -552,16 +574,16 @@
   }
 
   function draw(){drawBackground();drawWorld();}
-  function loop(now){const dt=(now-lastTime)/1000;lastTime=now;update(dt);draw();requestAnimationFrame(loop);}
+  function loop(now){const dt=(now-lastTime)/1000;lastTime=now;syncPauseButton();update(dt);draw();requestAnimationFrame(loop);}
 
   const keyMap={ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right',ArrowUp:'jump',w:'jump',W:'jump',' ':'jump'};
-  window.addEventListener('keydown',e=>{const action=keyMap[e.key];if(!action)return;e.preventDefault();if(action==='jump'&&!keys.jump)jump();keys[action]=true;canvasHint.classList.add('hidden');});
+  window.addEventListener('keydown',e=>{const action=keyMap[e.key];if(!action)return;e.preventDefault();if(state!=='playing')return;if(action==='jump'&&!keys.jump)jump();keys[action]=true;canvasHint.classList.add('hidden');});
   window.addEventListener('keyup',e=>{const action=keyMap[e.key];if(action){e.preventDefault();keys[action]=false;}});
   window.addEventListener('blur',()=>{keys.left=keys.right=keys.jump=false;});
 
   document.querySelectorAll('[data-control]').forEach(button=>{
     const action=button.dataset.control;
-    const down=e=>{e.preventDefault();button.setPointerCapture?.(e.pointerId);if(action==='jump'&&!keys.jump)jump();keys[action]=true;button.classList.add('pressed');};
+    const down=e=>{e.preventDefault();if(state!=='playing')return;button.setPointerCapture?.(e.pointerId);if(action==='jump'&&!keys.jump)jump();keys[action]=true;button.classList.add('pressed');};
     const up=e=>{e.preventDefault();keys[action]=false;button.classList.remove('pressed');};
     button.addEventListener('pointerdown',down);button.addEventListener('pointerup',up);button.addEventListener('pointercancel',up);button.addEventListener('lostpointercapture',up);
   });
@@ -573,6 +595,7 @@
     else resetRun();
     state='playing';document.body.classList.add('game-active');canvas.focus();
   });
+  pauseButton.addEventListener('click',()=>setPaused(state!=='paused'));
   document.getElementById('soundButton').addEventListener('click',e=>{muted=!muted;if(themeAudio)themeAudio.muted=muted;if(!muted){ensureAudio();startThemeAudio(false);}e.currentTarget.textContent=muted?'🔇':'🔊';e.currentTarget.setAttribute('aria-label',muted?'Unmute sounds':'Mute sounds');});
   document.getElementById('homeButton').addEventListener('click',()=>{
     keys.left=keys.right=keys.jump=false;document.body.classList.remove('game-active');endOverlay.classList.remove('visible');leaderboardOverlay.classList.remove('visible');resetRun();state='menu';startOverlay.classList.add('visible');heroNameInput.focus();
@@ -581,7 +604,7 @@
     leaderboardReturnState=state==='leaderboard'?'menu':state;keys.left=keys.right=keys.jump=false;state='leaderboard';document.body.classList.remove('game-active');renderLeaderboard();leaderboardOverlay.classList.add('visible');
   });
   document.getElementById('closeLeaderboardButton').addEventListener('click',()=>{
-    leaderboardOverlay.classList.remove('visible');state=leaderboardReturnState;if(state==='playing')document.body.classList.add('game-active');canvas.focus();
+    leaderboardOverlay.classList.remove('visible');state=leaderboardReturnState;if(state==='playing'||state==='paused')document.body.classList.add('game-active');canvas.focus();
   });
   document.getElementById('fullscreenButton').addEventListener('click',()=>{
     const shell=document.querySelector('.game-shell');if(!document.fullscreenElement)shell.requestFullscreen?.();else document.exitFullscreen?.();
@@ -592,6 +615,7 @@
   window.rivieQuest={getState:()=>({state,level,levelName:levelNames[level-1],score,lives,heroKind,boss:boss?{type:boss.type,alive:boss.alive,hp:boss.hp}:null,powerup:{collected:powerup?.collected,powered:Math.ceil(player.powered)},alliesLeft:allies.filter(a=>!a.collected).length,player:{x:Math.round(player.x),y:Math.round(player.y),grounded:player.grounded},treatsLeft:treats.filter(t=>!t.collected).length,enemiesLeft:enemies.filter(e=>e.alive).length})};
 
   resetRun();
+  syncPauseButton();
   startThemeAudio(true);
   requestAnimationFrame(loop);
 })();
