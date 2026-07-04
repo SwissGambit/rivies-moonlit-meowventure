@@ -153,3 +153,13 @@ footer i { width: 4px; height: 4px; border-radius: 50%; background: var(--berry)
   .leaderboard-card { padding: 18px; }
   .leaderboard-list { min-height: 220px; max-height: 360px; overflow-y: auto; }
 }
+
+/* Strong portrait controls — 2026-07-04h */
+@media (max-width: 430px) and (orientation: portrait) {
+  .stage-wrap { height: calc(100dvh - 270px) !important; min-height: 0 !important; }
+  .mobile-controls { height: 176px !important; padding: 12px 10px calc(12px + env(safe-area-inset-bottom)) !important; align-items: center !important; }
+  .move-controls { gap: 14px !important; }
+  .mobile-controls button { width: 108px !important; height: 108px !important; font-size: 46px !important; }
+  .mobile-controls .jump { width: 108px !important; height: 108px !important; }
+  .fullscreen-button { width: 60px !important; height: 56px !important; }
+}
