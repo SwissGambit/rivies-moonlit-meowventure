@@ -63,7 +63,7 @@
             </fieldset>
           </div>
           <button id="startButton" class="primary-button" type="button">Start adventure <span aria-hidden="true">→</span></button>
-          <p class="microcopy">Tip: stomp the gorilla five times to win the boss battle.</p>
+          <p class="microcopy">Tip: friendly heart cats give you an extra life when you pass them.</p>
         </div>
       </div>
 
@@ -84,11 +84,13 @@
         <button data-control="left" type="button" aria-label="Move left">←</button>
         <button data-control="right" type="button" aria-label="Move right">→</button>
       </div>
+      <button id="fullscreenButton" class="fullscreen-button" type="button" aria-label="Toggle full screen">⛶<small>SCREEN</small></button>
       <button class="jump-button" data-control="jump" type="button" aria-label="Jump">↑<small>JUMP</small></button>
     </div>
 
     <footer><span>Clear 10 levels</span><i></i><span>Find every cat-star</span><i></i><span>Battle 3 bosses</span></footer>
   </main>
+  <script src="audio-data.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
